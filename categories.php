@@ -162,7 +162,7 @@ try {
                     <table class="table">
                         <thead>
                             <tr>
-                                <th>ID</th>
+                                <th>#</th>
                                 <th>Category Name</th>
                                 <th>Slug</th>
                                 <th>Products Count</th>

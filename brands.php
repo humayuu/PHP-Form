@@ -56,7 +56,7 @@ if (isset($_GET['id'])) {
 
     try {
 
-        $conn->beginTransaction();  
+        $conn->beginTransaction();
         $delete = $conn->prepare("DELETE FROM brand_tbl WHERE id = :id");
         $delete->bindParam(":id", $id);
         $result =  $delete->execute();
@@ -67,7 +67,9 @@ if (isset($_GET['id'])) {
             exit;
         }
     } catch (PDOException $e) {
-        $conn->rollBack();
+        if ($conn->inTransaction()) {
+            $conn->rollBack();
+        }
         error_log("Brand Delete error in " . __FILE__ . "on" . __LINE__ . $e->getMessage());
     }
 }
@@ -159,7 +161,7 @@ try {
                     <table class="table">
                         <thead>
                             <tr>
-                                <th>ID</th>
+                                <th>#</th>
                                 <th>Brand Name</th>
                                 <th>Status</th>
                                 <th>Actions</th>
