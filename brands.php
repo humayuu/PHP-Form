@@ -13,17 +13,19 @@ if ($_SERVER['REQUEST_METHOD'] === "POST" && isset($_POST['submit'])) {
         exit;
     }
 
+    $name = filter_var($_POST['brand_name'], FILTER_SANITIZE_SPECIAL_CHARS);
+    $description = filter_var($_POST['brand_description'], FILTER_SANITIZE_SPECIAL_CHARS);
+    $status = filter_var($_POST['brand_status'], FILTER_SANITIZE_SPECIAL_CHARS);
+
+    if (empty($name) || empty($description) || $status === 'Select Status') {
+        header("Location: " . basename(__FILE__) . "?inputError=1");
+        exit;
+    }
+
 
     try {
 
-        $name = filter_var($_POST['brand_name'], FILTER_SANITIZE_SPECIAL_CHARS);
-        $description = filter_var($_POST['brand_description'], FILTER_SANITIZE_SPECIAL_CHARS);
-        $status = filter_var($_POST['brand_status'], FILTER_SANITIZE_SPECIAL_CHARS);
-
-        if (empty($name) || empty($description) || $status === 'Select Status') {
-            header("Location: " . basename(__FILE__) . "?inputError=1");
-            exit;
-        }
+        $conn->beginTransaction();
 
         $stmt = $conn->prepare("INSERT INTO brand_tbl (brand_name, brand_description, brand_status) VALUES (:bname, :bdescp, :bstatus)");
         $stmt->bindParam(":bname", $name);
@@ -32,6 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === "POST" && isset($_POST['submit'])) {
         $result = $stmt->execute();
 
         if ($result) {
+            $conn->commit();
             header("Location: " . basename(__FILE__) . "?success=1");
             exit;
         } else {
@@ -40,6 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === "POST" && isset($_POST['submit'])) {
             exit;
         }
     } catch (PDOException $e) {
+        $conn->rollBack();
         error_log("Add Brand error in " . __FILE__ . "on" . __LINE__ . $e->getMessage());
     }
 }
@@ -47,14 +51,24 @@ if ($_SERVER['REQUEST_METHOD'] === "POST" && isset($_POST['submit'])) {
 
 // For Delete Brand Data
 if (isset($_GET['id'])) {
-    $id = htmlspecialchars($_GET['id']);
-    $delete = $conn->prepare("DELETE FROM brand_tbl WHERE id = :id");
-    $delete->bindParam(":id", $id);
-    $result =  $delete->execute();
 
-    if ($result) {
-        header("Location: " . basename(__FILE__) . "?deleteSuccess=1");
-        exit;
+    $id = htmlspecialchars($_GET['id']);
+
+    try {
+
+        $conn->beginTransaction();  
+        $delete = $conn->prepare("DELETE FROM brand_tbl WHERE id = :id");
+        $delete->bindParam(":id", $id);
+        $result =  $delete->execute();
+
+        if ($result) {
+            $conn->commit();
+            header("Location: " . basename(__FILE__) . "?deleteSuccess=1");
+            exit;
+        }
+    } catch (PDOException $e) {
+        $conn->rollBack();
+        error_log("Brand Delete error in " . __FILE__ . "on" . __LINE__ . $e->getMessage());
     }
 }
 
@@ -105,9 +119,9 @@ try {
                     echo '<div class="error">All Fields are Required.</div>';
                 } elseif (isset($_GET['deleteSuccess']) && $_GET['deleteSuccess'] == 1) {
                     echo '<div class="success">Brand Deleted Successfully.</div>';
-                }elseif (isset($_GET['update']) && $_GET['update'] == 1) {
+                } elseif (isset($_GET['update']) && $_GET['update'] == 1) {
                     echo '<div class="warning">Brand Updated Successfully.</div>';
-                }elseif (isset($_GET['success']) && $_GET['success'] == 1) {
+                } elseif (isset($_GET['success']) && $_GET['success'] == 1) {
                     echo '<div class="success">Brand Add Successfully.</div>';
                 }
                 ?>
@@ -159,7 +173,7 @@ try {
                                 <tr>
                                     <td><?= $sl++ ?></td>
                                     <td><?= $brand['brand_name']; ?></td>
-                                    <td><?= $brand['brand_status']; ?></td>
+                                    <td class="status-active"><?= $brand['brand_status']; ?></td>
                                     <td>
                                         <a href="edit_brand.php?id=<?= $brand['id'] ?>" class="btn btn-edit">Edit</a>
                                         <a href="<?= basename(__FILE__) . "?id=" . $brand['id'] ?>" onclick="return confirm('Are you sure?')" class="btn btn-danger">Delete</a>
