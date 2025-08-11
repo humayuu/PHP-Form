@@ -239,76 +239,10 @@ if (isset($_GET['id'])) {
                         </select>
                     </div>
 
-                    <button type="submit" name="submit" class="btn btn-primary">Add Product</button>
+                    <button type="submit" name="submit" class="btn btn-primary">Update
+                         Product</button>
                 </form>
 
-            </div>
-
-            <?php
-
-            $proSql = $conn->prepare("SELECT 
-                                             product_tbl.id,
-                                             product_tbl.product_name,
-                                             product_tbl.product_description,
-                                             product_tbl.brand_id,
-                                             product_tbl.category_id,
-                                             product_tbl.sub_category_id,
-                                             product_tbl.product_price,
-                                             product_tbl.discount_price,
-                                             product_tbl.product_stock,
-                                             product_tbl.product_status,
-                                             brand_tbl.brand_name,
-                                             category_tbl.category_name
-                                             FROM product_tbl 
-                                             LEFT JOIN brand_tbl ON product_tbl.brand_id = brand_tbl.id 
-                                             LEFT JOIN category_tbl ON product_tbl.category_id = category_tbl.id 
-                                             ORDER BY product_tbl.product_name");
-            $proSql->execute();
-            $products =  $proSql->fetchAll(PDO::FETCH_ASSOC);
-            ?>
-
-            <div class="table-section">
-                <h2>Existing Products</h2>
-                <?php if ($products): ?>
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Product Name</th>
-                                <th>Category</th>
-                                <th>Brand</th>
-                                <th>Price</th>
-                                <th>Stock</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($products as $product): ?>
-                                <tr>
-                                    <td><?= htmlspecialchars($product['product_name']) ?></td>
-                                    <td><span class="category-tag"><?= htmlspecialchars($product['category_name']) ?></span></td>
-                                    <td><?= htmlspecialchars($product['brand_name']) ?></td>
-                                    <td class="price">$<?= number_format($product['product_price'], 2) ?></td>
-                                    <td class="<?= $product['product_stock'] > 0 ? 'stock-good' : 'stock-bad' ?>">
-                                        <?= (int)$product['product_stock'] ?>
-                                    </td>
-                                    <td>
-                                        <span class="status-active <?= $product['product_status'] === 'Active' ? 'status-active' : 'status-inactive' ?>">
-                                            <?= htmlspecialchars($product['product_status']) ?>
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <a href="products_edit.php?pid=<?= $product['id'] ?>" class="btn btn-edit">Edit</a>
-                                        <a href="<?= basename(__FILE__) . "?id=" . $product['id'] ?>" onclick="return confirm('Are you sure?')" class="btn btn-danger">Delete</a>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                <?php else: ?>
-                    <div class="info">No Brand Record Found!</div>
-
-                <?php endif; ?>
             </div>
         </div>
     </div>
