@@ -1,124 +1,3 @@
-<?php
-require 'config.php';
-session_start();
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
-
-if ($_SERVER['REQUEST_METHOD'] === "POST" && isset($_POST['submit'])) {
-    if (!hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
-        header("Location: " . basename(__FILE__) . "?csrfError=1");
-        exit;
-    }
-
-
-    $productName        = trim(filter_var($_POST['product_name'] ?? '', FILTER_SANITIZE_SPECIAL_CHARS));
-    $productDescription = trim(filter_var($_POST['product_description'] ?? '', FILTER_SANITIZE_SPECIAL_CHARS));
-    $brandVal           = (int) ($_POST['brand'] ?? 0);
-    $categoryVal        = (int) ($_POST['category'] ?? 0);
-    $subCategoryVal     = (int) ($_POST['subcategory'] ?? 0);
-    $price              = (float) ($_POST['product_price'] ?? 0);
-    $discountPrice      = (float) ($_POST['discount_price'] ?? 0);
-    $stock              = (int) ($_POST['product_stock'] ?? 0);
-    $productStatus      = trim(filter_var($_POST['product_status'] ?? '', FILTER_SANITIZE_SPECIAL_CHARS));
-
-    if (empty($productName) || empty($productDescription)) {
-        header("Location: " . basename(__FILE__) . "?inputError=1");
-        exit;
-    }
-
-    if ($price <= 0) {
-        header("Location: " . basename(__FILE__) . "?priceError=1");
-        exit;
-    }
-
-    if ($discountPrice > 0 && $discountPrice >= $price) {
-        header("Location: " . basename(__FILE__) . "?discountError=1");
-        exit;
-    }
-
-
-
-    try {
-        $conn->beginTransaction();
-
-        $stmt = $conn->prepare("INSERT INTO product_tbl (product_name, product_description, brand_id, category_id, sub_category_id, product_price, discount_price, product_stock, product_status) 
-                                                        VALUES (:pname, :pdescp, :bid, :cid, :subcatId, :pprice, :dprice, :pstock, :pstatus)");
-        $stmt->bindParam(":pname", $productName);
-        $stmt->bindParam(":pdescp", $productDescription);
-        $stmt->bindParam(":bid", $brandVal);
-        $stmt->bindParam(":cid", $categoryVal);
-        $stmt->bindParam(":subcatId", $subCategoryVal);
-        $stmt->bindParam(":pprice", $price);
-        $stmt->bindParam(":dprice", $discountPrice);
-        $stmt->bindParam(":pstock", $stock);
-        $stmt->bindParam(":pstatus", $productStatus);
-        $result = $stmt->execute();
-
-        if ($result) {
-            $conn->commit();
-
-            // Redirect to Home
-            header("Location: products.php?success=1");
-            exit;
-        }
-    } catch (PDOException $e) {
-        if ($conn->inTransaction()) {
-            $conn->rollBack();
-        }
-        error_log("Product Insert Error in " . __FILE__ . " on line " . __LINE__ . ": " . $e->getMessage());
-    }
-}
-
-
-// ---------- AJAX handler: must run BEFORE any HTML output ----------
-if (isset($_GET['action']) && $_GET['action'] === 'get_subcategories') {
-    header('Content-Type: application/json; charset=utf-8');
-
-    $category_id = isset($_GET['category_id']) ? intval($_GET['category_id']) : 0;
-    if ($category_id <= 0) {
-        echo json_encode([]);
-        exit;
-    }
-
-    $stmt = $conn->prepare("SELECT id, sub_category_name FROM sub_category_tbl WHERE category_id = ? ORDER BY sub_category_name");
-    $stmt->execute([$category_id]);
-    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    echo json_encode($rows);
-    exit; // Important: stop further output
-
-}
-
-// For Delete Record 
-if (isset($_GET['id'])) {
-    $id = trim(filter_var($_GET['id'], FILTER_VALIDATE_INT));
-    if ($id === false || $id === null) {
-        header('Location: products.php?deleteError=invalid_id');
-        exit;
-    }
-    try {
-        $conn->beginTransaction();
-
-        $query = $conn->prepare("DELETE FROM product_tbl WHERE id = :id");
-        $query->bindParam(":id", $id);
-        $result = $query->execute();
-
-        if ($result) {
-            $conn->commit();
-            header("Location: products.php?deleteSuccess=1");
-            exit;
-        }
-    } catch (PDOException $e) {
-        if ($conn->inTransaction()) {
-            $conn->rollBack();
-        }
-        error_log("Product Delete error in " . __FILE__ . "on" . __LINE__ . $e->getMessage());
-    }
-}
-
-
-?>
 <!DOCTYPE html>
 <html lang="en">
 
@@ -142,28 +21,9 @@ if (isset($_GET['id'])) {
         <div class="content-wrapper">
             <div class="form-section">
                 <h2>Add New Product</h2>
-                <?php
-                if (isset($_GET['csrfError']) && $_GET['csrfError'] == 1) {
-                    echo '<div class="error">CSRF Token Error.</div>';
-                } elseif (isset($_GET['inputError']) && $_GET['inputError'] == 1) {
-                    echo '<div class="error">All Fields are Required.</div>';
-                } elseif (isset($_GET['deleteSuccess']) && $_GET['deleteSuccess'] == 1) {
-                    echo '<div class="success">Sub Category Deleted Successfully.</div>';
-                } elseif (isset($_GET['deleteError'])) {
-                    echo '<div class="error">Delete Error: ' . htmlspecialchars($_GET['deleteError']) . '</div>';
-                } elseif (isset($_GET['update']) && $_GET['update'] == 1) {
-                    echo '<div class="warning">Category Updated Successfully.</div>';
-                } elseif (isset($_GET['success']) && $_GET['success'] == 1) {
-                    echo '<div class="success">Product   Add Successfully.</div>';
-                } elseif (isset($_GET['priceError']) && $_GET['priceError'] == 1) {
-                    echo '<div class="success">All Fields are Required.</div>';
-                } elseif (isset($_GET['discountError']) && $_GET['discountError'] == 1) {
-                    echo '<div class="success">All Fields are Required.</div>';
-                }
-                ?>
 
-                <form method="POST" action="<?= basename(__FILE__) ?>">
-                    <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
+                <form method="POST" action="#">
+                    <input type="hidden" name="csrf_token" value="">
                     <div class="form-group">
                         <label for="product-name">Product Name *</label>
                         <input type="text" id="product-name" name="product_name">
@@ -175,34 +35,22 @@ if (isset($_GET['id'])) {
                     </div>
 
                     <div class="form-group">
-                        <?php
-                        $brandValue = $conn->prepare("SELECT * FROM brand_tbl ORDER BY brand_name");
-                        $brandValue->execute();
-                        $brands = $brandValue->fetchAll(PDO::FETCH_ASSOC);
-
-                        ?>
                         <label for="product-brand">Brand</label>
                         <select id="product-brand" name="brand">
                             <option value="" disabled selected>Select Brand</option>
-                            <?php foreach ($brands as $brand): ?>
-                                <option value="<?= $brand['id'] ?>"><?= $brand['brand_name'] ?></option>
-                            <?php endforeach; ?>
+                            <option value="1">Nike</option>
+                            <option value="2">Adidas</option>
+                            <option value="3">Puma</option>
                         </select>
                     </div>
 
                     <div class="form-group">
-                        <?php
-                        $categoryValue = $conn->prepare("SELECT * FROM category_tbl ORDER BY category_name");
-                        $categoryValue->execute();
-                        $categories = $categoryValue->fetchAll(PDO::FETCH_ASSOC);
-
-                        ?>
                         <label for="product-category">Category *</label>
                         <select id="product-category" name="category">
                             <option value="" selected disabled>Select Category</option>
-                            <?php foreach ($categories as $category): ?>
-                                <option value="<?= $category['id'] ?>"><?= $category['category_name'] ?></option>
-                            <?php endforeach; ?>
+                            <option value="1">Electronics</option>
+                            <option value="2">Clothing</option>
+                            <option value="3">Books</option>
                         </select>
                     </div>
 
@@ -210,6 +58,9 @@ if (isset($_GET['id'])) {
                         <label for="subcategory">Sub Category</label>
                         <select id="subcategory" name="subcategory">
                             <option value="" selected disabled>Select Sub Category</option>
+                            <option value="1">Smartphones</option>
+                            <option value="2">Laptops</option>
+                            <option value="3">Headphones</option>
                         </select>
                     </div>
 
@@ -244,110 +95,69 @@ if (isset($_GET['id'])) {
 
             </div>
 
-            <?php
-
-            $proSql = $conn->prepare("SELECT 
-                                             product_tbl.id,
-                                             product_tbl.product_name,
-                                             product_tbl.product_description,
-                                             product_tbl.brand_id,
-                                             product_tbl.category_id,
-                                             product_tbl.sub_category_id,
-                                             product_tbl.product_price,
-                                             product_tbl.discount_price,
-                                             product_tbl.product_stock,
-                                             product_tbl.product_status,
-                                             brand_tbl.brand_name,
-                                             category_tbl.category_name
-                                             FROM product_tbl 
-                                             LEFT JOIN brand_tbl ON product_tbl.brand_id = brand_tbl.id 
-                                             LEFT JOIN category_tbl ON product_tbl.category_id = category_tbl.id 
-                                             ORDER BY product_tbl.product_name");
-            $proSql->execute();
-            $products =  $proSql->fetchAll(PDO::FETCH_ASSOC);
-            ?>
-
             <div class="table-section">
                 <h2>Existing Products</h2>
-                <?php if ($products): ?>
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Product Name</th>
-                                <th>Category</th>
-                                <th>Brand</th>
-                                <th>Price</th>
-                                <th>Stock</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($products as $product): ?>
-                                <tr>
-                                    <td><?= htmlspecialchars($product['product_name']) ?></td>
-                                    <td><span class="category-tag"><?= htmlspecialchars($product['category_name']) ?></span></td>
-                                    <td><?= htmlspecialchars($product['brand_name']) ?></td>
-                                    <td class="price">$<?= number_format($product['product_price'], 2) ?></td>
-                                    <td class="<?= $product['product_stock'] > 0 ? 'stock-good' : 'stock-bad' ?>">
-                                        <?= (int)$product['product_stock'] ?>
-                                    </td>
-                                    <td>
-                                        <span class="status-active <?= $product['product_status'] === 'Active' ? 'status-active' : 'status-inactive' ?>">
-                                            <?= htmlspecialchars($product['product_status']) ?>
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <a href="products_edit.php?pid=<?= $product['id'] ?>" class="btn btn-edit">Edit</a>
-                                        <a href="<?= basename(__FILE__) . "?id=" . $product['id'] ?>" onclick="return confirm('Are you sure?')" class="btn btn-danger">Delete</a>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                <?php else: ?>
-                    <div class="info">No Brand Record Found!</div>
-
-                <?php endif; ?>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Product Name</th>
+                            <th>Category</th>
+                            <th>Brand</th>
+                            <th>Price</th>
+                            <th>Stock</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>iPhone 13 Pro</td>
+                            <td><span class="category-tag">Electronics</span></td>
+                            <td>Apple</td>
+                            <td class="price">$999.00</td>
+                            <td class="stock-good">25</td>
+                            <td>
+                                <span class="status-active">active</span>
+                            </td>
+                            <td>
+                                <a href="#" class="btn btn-edit">Edit</a>
+                                <a href="#" onclick="return confirm('Are you sure?')" class="btn btn-danger">Delete</a>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Nike Air Jordan</td>
+                            <td><span class="category-tag">Clothing</span></td>
+                            <td>Nike</td>
+                            <td class="price">$150.00</td>
+                            <td class="stock-good">12</td>
+                            <td>
+                                <span class="status-active">active</span>
+                            </td>
+                            <td>
+                                <a href="#" class="btn btn-edit">Edit</a>
+                                <a href="#" onclick="return confirm('Are you sure?')" class="btn btn-danger">Delete</a>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>MacBook Pro</td>
+                            <td><span class="category-tag">Electronics</span></td>
+                            <td>Apple</td>
+                            <td class="price">$1299.00</td>
+                            <td class="stock-bad">0</td>
+                            <td>
+                                <span class="status-inactive">inactive</span>
+                            </td>
+                            <td>
+                                <a href="#" class="btn btn-edit">Edit</a>
+                                <a href="#" onclick="return confirm('Are you sure?')" class="btn btn-danger">Delete</a>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
-    <script>
-        document.getElementById('product-category').addEventListener('change', function() {
-            const id = this.value;
-            const sub = document.getElementById('subcategory');
-            sub.innerHTML = '<option value="" selected disabled>Select Sub Category</option>';
-            if (!id) return;
-            fetch('?action=get_subcategories&category_id=' + encodeURIComponent(id))
-                .then(r => {
-                    if (!r.ok) throw new Error(r.status);
-                    return r.json();
-                })
-                .then(list => {
-                    if (!Array.isArray(list) || list.length === 0) {
-                        const o = document.createElement('option');
-                        o.textContent = 'No subcategories';
-                        o.disabled = true;
-                        sub.appendChild(o);
-                        return;
-                    }
-                    list.forEach(s => {
-                        const o = document.createElement('option');
-                        o.value = s.id;
-                        o.textContent = s.sub_category_name;
-                        sub.appendChild(o);
-                    });
-                })
-                .catch(() => {
-                    const o = document.createElement('option');
-                    o.textContent = 'Error loading';
-                    o.disabled = true;
-                    sub.appendChild(o);
-                });
-        });
-    </script>
 
 </body>
 
 </html>
-<?php $conn = null; ?>
