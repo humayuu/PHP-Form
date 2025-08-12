@@ -12,6 +12,7 @@ if ($_SERVER['REQUEST_METHOD'] === "POST" && isset($_POST['submit'])) {
     }
 
 
+    $ppId               = trim(filter_var($_POST['id'] ?? '', FILTER_VALIDATE_INT));
     $productName        = trim(filter_var($_POST['product_name'] ?? '', FILTER_SANITIZE_SPECIAL_CHARS));
     $productDescription = trim(filter_var($_POST['product_description'] ?? '', FILTER_SANITIZE_SPECIAL_CHARS));
     $brandVal           = (int) ($_POST['brand'] ?? 0);
@@ -42,8 +43,19 @@ if ($_SERVER['REQUEST_METHOD'] === "POST" && isset($_POST['submit'])) {
     try {
         $conn->beginTransaction();
 
-        $stmt = $conn->prepare("INSERT INTO product_tbl (product_name, product_description, brand_id, category_id, sub_category_id, product_price, discount_price, product_stock, product_status) 
-                                                        VALUES (:pname, :pdescp, :bid, :cid, :subcatId, :pprice, :dprice, :pstock, :pstatus)");
+        $stmt = $conn->prepare("UPDATE product_tbl 
+                                         SET  product_name = :pname, 
+                                              product_description = :pdescp,       
+                                              brand_id = :bid,       
+                                              category_id = :cid,       
+                                              sub_category_id = :subcatId,       
+                                              product_price = :pprice,       
+                                              discount_price = :dprice,       
+                                              product_stock = :pstock,       
+                                              product_status = :pstatus
+                                          WHERE id = :ppid");
+
+        $stmt->bindParam(":ppid", $ppId);
         $stmt->bindParam(":pname", $productName);
         $stmt->bindParam(":pdescp", $productDescription);
         $stmt->bindParam(":bid", $brandVal);
@@ -59,7 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === "POST" && isset($_POST['submit'])) {
             $conn->commit();
 
             // Redirect to Home
-            header("Location: products.php?success=1");
+            header("Location: products.php?update=1");
             exit;
         }
     } catch (PDOException $e) {
@@ -71,52 +83,12 @@ if ($_SERVER['REQUEST_METHOD'] === "POST" && isset($_POST['submit'])) {
 }
 
 
-// ---------- AJAX handler: must run BEFORE any HTML output ----------
-if (isset($_GET['action']) && $_GET['action'] === 'get_subcategories') {
-    header('Content-Type: application/json; charset=utf-8');
-
-    $category_id = isset($_GET['category_id']) ? intval($_GET['category_id']) : 0;
-    if ($category_id <= 0) {
-        echo json_encode([]);
-        exit;
-    }
-
-    $stmt = $conn->prepare("SELECT id, sub_category_name FROM sub_category_tbl WHERE category_id = ? ORDER BY sub_category_name");
-    $stmt->execute([$category_id]);
-    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    echo json_encode($rows);
-    exit; // Important: stop further output
-
-}
-
-// For Delete Record 
-if (isset($_GET['id'])) {
-    $id = trim(filter_var($_GET['id'], FILTER_VALIDATE_INT));
-    if ($id === false || $id === null) {
-        header('Location: products.php?deleteError=invalid_id');
-        exit;
-    }
-    try {
-        $conn->beginTransaction();
-
-        $query = $conn->prepare("DELETE FROM product_tbl WHERE id = :id");
-        $query->bindParam(":id", $id);
-        $result = $query->execute();
-
-        if ($result) {
-            $conn->commit();
-            header("Location: products.php?deleteSuccess=1");
-            exit;
-        }
-    } catch (PDOException $e) {
-        if ($conn->inTransaction()) {
-            $conn->rollBack();
-        }
-        error_log("Product Delete error in " . __FILE__ . "on" . __LINE__ . $e->getMessage());
-    }
-}
-
+// For Fetch Data with specific Id
+$id = filter_var($_GET['pid'] ?? 0, FILTER_VALIDATE_INT);
+$sql = $conn->prepare("SELECT * FROM product_tbl WHERE id = :id");
+$sql->bindParam(":id", $id);
+$sql->execute();
+$product = $sql->fetch(PDO::FETCH_ASSOC);
 
 ?>
 <!DOCTYPE html>
@@ -164,14 +136,15 @@ if (isset($_GET['id'])) {
 
                 <form method="POST" action="<?= basename(__FILE__) ?>">
                     <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
+                    <input type="hidden" name="id" value="<?= htmlspecialchars($product['id']) ?>">
                     <div class="form-group">
                         <label for="product-name">Product Name *</label>
-                        <input type="text" id="product-name" name="product_name">
+                        <input type="text" id="product-name" name="product_name" value="<?= htmlspecialchars($product['product_name']) ?>">
                     </div>
 
                     <div class="form-group">
                         <label for="product-description">Description</label>
-                        <textarea id="product-description" name="product_description" placeholder="Product description"></textarea>
+                        <textarea id="product-description" name="product_description" placeholder="Product description"><?= htmlspecialchars($product['product_description']) ?></textarea>
                     </div>
 
                     <div class="form-group">
@@ -185,7 +158,7 @@ if (isset($_GET['id'])) {
                         <select id="product-brand" name="brand">
                             <option value="" disabled selected>Select Brand</option>
                             <?php foreach ($brands as $brand): ?>
-                                <option value="<?= $brand['id'] ?>"><?= $brand['brand_name'] ?></option>
+                                <option value="<?= $brand['id'] ?>" <?= ($product['brand_id'] === $brand['id']) ? 'selected' : null ?>><?= htmlspecialchars($brand['brand_name']) ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -201,86 +174,60 @@ if (isset($_GET['id'])) {
                         <select id="product-category" name="category">
                             <option value="" selected disabled>Select Category</option>
                             <?php foreach ($categories as $category): ?>
-                                <option value="<?= $category['id'] ?>"><?= $category['category_name'] ?></option>
+                                <option value="<?= $category['id'] ?>" <?= ($product['category_id'] === $category['id']) ? 'selected' : null ?>><?= htmlspecialchars($category['category_name']) ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
 
                     <div class="form-group">
-                        <label for="subcategory">Sub Category</label>
-                        <select id="subcategory" name="subcategory">
-                            <option value="" selected disabled>Select Sub Category</option>
+                        <?php
+                        $subCategoryValue = $conn->prepare("SELECT * FROM sub_category_tbl ORDER BY sub_category_name");
+                        $subCategoryValue->execute();
+                        $subCategories = $subCategoryValue->fetchAll(PDO::FETCH_ASSOC);
+
+                        ?>
+                        <label for="product-category">Category *</label>
+                        <select id="product-category" name="subcategory">
+                            <option value="" selected disabled>Select SubCategory</option>
+                            <?php foreach ($subCategories as $subCategory): ?>
+                                <option value="<?= $subCategory['id'] ?>" <?= ($product['sub_category_id'] === $subCategory['id']) ? 'selected' : null ?>><?= htmlspecialchars($subCategory['sub_category_name']) ?></option>
+                            <?php endforeach; ?>
                         </select>
                     </div>
-
                     <div class="price-group">
                         <div class="form-group">
                             <label for="product-price">Price *</label>
-                            <input type="number" id="product-price" name="product_price" step="0.01">
+                            <input type="number" id="product-price" name="product_price" step="0.01" value="<?= htmlspecialchars($product['product_price']) ?>">
                         </div>
 
                         <div class="form-group">
                             <label for="product-sale-price">Discount Price</label>
-                            <input type="number" id="product-sale-price" name="discount_price" step="0.01">
+                            <input type="number" id="product-sale-price" name="discount_price" step="0.01" value="<?= htmlspecialchars($product['discount_price']) ?>">
                         </div>
                     </div>
 
                     <div class="form-group">
                         <label for="product-stock">Stock Quantity *</label>
-                        <input type="number" id="product-stock" name="product_stock">
+                        <input type="number" id="product-stock" name="product_stock" value="<?= htmlspecialchars($product['product_stock']) ?>">
                     </div>
 
                     <div class="form-group">
                         <label for="product-status">Status</label>
                         <select id="product-status" name="product_status">
-                            <option value="active">Active</option>
-                            <option value="inactive">Inactive</option>
-                            <option value="draft">Draft</option>
+                            <option value="active" <?= ($product['product_status'] == 'active') ? 'selected' : null  ?>>Active</option>
+                            <option value="inactive" <?= ($product['product_status'] == 'inactive') ? 'selected' : null  ?>>Inactive</option>
                         </select>
                     </div>
 
                     <button type="submit" name="submit" class="btn btn-primary">Update
-                         Product</button>
+                        Product</button>
+                    <a href="products.php" class="btn">Back to Home</a>
+
                 </form>
 
             </div>
         </div>
     </div>
-    <script>
-        document.getElementById('product-category').addEventListener('change', function() {
-            const id = this.value;
-            const sub = document.getElementById('subcategory');
-            sub.innerHTML = '<option value="" selected disabled>Select Sub Category</option>';
-            if (!id) return;
-            fetch('?action=get_subcategories&category_id=' + encodeURIComponent(id))
-                .then(r => {
-                    if (!r.ok) throw new Error(r.status);
-                    return r.json();
-                })
-                .then(list => {
-                    if (!Array.isArray(list) || list.length === 0) {
-                        const o = document.createElement('option');
-                        o.textContent = 'No subcategories';
-                        o.disabled = true;
-                        sub.appendChild(o);
-                        return;
-                    }
-                    list.forEach(s => {
-                        const o = document.createElement('option');
-                        o.value = s.id;
-                        o.textContent = s.sub_category_name;
-                        sub.appendChild(o);
-                    });
-                })
-                .catch(() => {
-                    const o = document.createElement('option');
-                    o.textContent = 'Error loading';
-                    o.disabled = true;
-                    sub.appendChild(o);
-                });
-        });
-    </script>
-
 </body>
 
 </html>
