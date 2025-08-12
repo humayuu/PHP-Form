@@ -74,6 +74,7 @@ if (isset($_GET['id'])) {
             $conn->rollBack();
             header("Location: subcategories.php?deleteError=record_not_found");
             exit;
+            
         }
         
     } catch (PDOException $e) {
