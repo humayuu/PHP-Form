@@ -132,6 +132,42 @@ class Database
         }
     }
 
+    // Function For Fetch Single Record by ID or Condition
+    public function selectId($table, $rows = "*", $join = null, $where = null, $params = [], $order = null, $limit = null)
+    {
+        if (!$this->tableExists($table)) {
+            return false;
+        }
+
+        $sql = "SELECT $rows FROM `$table`";
+
+        if ($join) {
+            $sql .= " $join";
+        }
+
+        if ($where) {
+            $sql .= " WHERE $where";
+        }
+
+        if ($order) {
+            $sql .= " ORDER BY $order";
+        }
+
+        if ($limit) {
+            $sql .= " LIMIT $limit";
+        }
+
+        try {
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute($params);
+            return $stmt->fetch(PDO::FETCH_ASSOC); // single row
+        } catch (PDOException $e) {
+            $this->result[] = "Error in fetch record: " . $e->getMessage();
+            return false;
+        }
+    }
+
+
 
     // Function for Update Record in Database
     public function update($table, $param = [], $where = null, $redirect = null)

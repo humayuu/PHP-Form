@@ -129,8 +129,8 @@ if(isset($_GET['id'])){
                                     <td><?= htmlspecialchars($brand['brand_name'])  ?></td>
                                     <td class="status-active"><?= htmlspecialchars($brand['brand_status']) ?></td>
                                     <td>
-                                        <a href="#" class="btn btn-edit">Edit</a>
-                                        <a href="brands.php?id=<?= $brand['id'] ?>" onclick="return confirm('Are you sure?')" class="btn btn-danger">Delete</a>
+                                        <a href="brands_edit.php?id=<?= $brand['id'] ?>" class="btn btn-edit">Edit</a>
+                                        <a href="<?= basename(__FILE__) . '?id=' . $brand['id'] ?>" onclick="return confirm('Are you sure?')" class="btn btn-danger">Delete</a>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
