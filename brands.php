@@ -1,11 +1,47 @@
-<?php 
+<?php
 require 'Database.php';
+session_start();
 
+// Ensure CSRF token exists
+if (!isset($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
+$obj = new Database();
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
+    // Ensure token exists in POST and compare safely
+    if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        header('Location: ' . basename(__FILE__) . '?csrfError=1');
+        exit;
+    }
+
+    $brandName = trim(filter_var($_POST['brand_name'] ?? '', FILTER_SANITIZE_SPECIAL_CHARS));
+    $brandDescription = trim(filter_var($_POST['brand_description'] ?? '', FILTER_SANITIZE_SPECIAL_CHARS));
+    // Cast/validate status (defaults to 0)
+    $brandStatus = isset($_POST['brand_status']) ? (int) $_POST['brand_status'] : 0;
+
+    if ($brandName === '' || $brandDescription === '') {
+        header('Location: ' . basename(__FILE__) . '?inputError=1');
+        exit;
+    }
+
+    $table = 'brand_tbl';
+    $params = [
+        'brand_name' => $brandName,
+        'brand_description' => $brandDescription,
+        'brand_status' => $brandStatus
+    ];
+
+    $redirect = basename(__FILE__) . '?success=1';
+    $obj->insert($table, $params, $redirect);
+}
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 
-<head>  
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Products Management</title>
@@ -25,9 +61,9 @@ require 'Database.php';
         <div class="content-wrapper">
             <div class="form-section">
                 <h2>Add New Brand</h2>
-                
-                <form method="post" action="#">
-                    <input type="hidden" name="csrf_token" value="">
+
+                <form method="post" action="<?= basename(__FILE__) ?>">
+                    <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
                     <div class="form-group">
                         <label for="brand-name">Brand Name *</label>
                         <input type="text" id="brand-name" name="brand_name">
@@ -78,4 +114,5 @@ require 'Database.php';
     </div>
 
 </body>
+
 </html>

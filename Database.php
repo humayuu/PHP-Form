@@ -87,56 +87,116 @@ class Database
     }
 
 
+    // Function for Fetch Data
+    public function select($table, $rows = "*", $join = null, $where = null, $order = null, $limit = null)
+    {
+        if (!$this->tableExists($table)) {
+            return false;
+        }
+
+        $sql = "SELECT $rows FROM $table";
+
+        if ($join != null) {
+            $sql .= " $join";
+        }
+
+        if ($where != null) {
+            $sql .= " WHERE $where";
+        }
+        if ($order != null) {
+            $sql .= " ORDER BY $order";
+        }
+        if ($limit != null) {
+            $sql .= " LIMIT $limit";
+        }
 
 
+        try {
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute();
+            $this->result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            return $this->result;
+        } catch (PDOException $e) {
+            $this->result[] = "Error in Fetch Record: " . $e->getMessage();
+            return false;
+        }
+    }
+
+    // Function for Update Data
+    public function update($table, $params = [], $where = null, $redirect = null)
+    {
+        if (!$this->tableExists($table)) {
+            return false;
+        }
+
+        if (empty($params) || !is_array($params)) {
+            $this->result[] = "No data provided for update.";
+            return false;
+        }
+
+        try {
+            // Build SET clause: col1 = :col1, col2 = :col2
+            $setClause = implode(", ", array_map(function ($col) {
+                return "$col = :$col";
+            }, array_keys($params)));
+
+            $sql = "UPDATE $table SET $setClause";
+
+            if ($where != null) {
+                $sql .= " WHERE $where";
+            }
+
+            $stmt = $this->pdo->prepare($sql);
+            $result = $stmt->execute($params);
+
+            if ($result) {
+                if ($redirect) {
+                    header("Location: " . $redirect);
+                    exit;
+                }
+                return true; // Update successful
+            }
+
+            return false;
+        } catch (PDOException $e) {
+            $this->result[] = "Error in updating record: " . $e->getMessage();
+            return false;
+        }
+    }
 
 
+    // Function for Delete Data
+    public function delete($table, $where = null, $redirect = null)
+    {
+        if (!$this->tableExists($table)) {
+            return false;
+        }
 
+        try {
 
+            $sql = "DELETE FROM $table";
 
+            if ($where != null) {
+                $sql .= " WHERE $where";
+            }
 
+            $stmt = $this->pdo->prepare($sql);
+            $result = $stmt->execute();
 
+            if ($result) {
+                if ($redirect) {
+                    header("Location: " . $redirect);
+                    exit;
+                }
+                return true; // Delete successful
+            }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+            return false;
+        } catch (PDOException $e) {
+            $this->result[] = "Error in delete record: " . $e->getMessage();
+            return false;
+        }
+    }
 
 
 
