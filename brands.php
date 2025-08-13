@@ -10,33 +10,44 @@ if (!isset($_SESSION['csrf_token'])) {
 $obj = new Database();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
-    // Ensure token exists in POST and compare safely
+    // CSRF check
     if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
         header('Location: ' . basename(__FILE__) . '?csrfError=1');
         exit;
     }
 
-    $brandName = trim(filter_var($_POST['brand_name'] ?? '', FILTER_SANITIZE_SPECIAL_CHARS));
+    // Sanitize inputs
+    $brandName        = trim(filter_var($_POST['brand_name'] ?? '', FILTER_SANITIZE_SPECIAL_CHARS));
     $brandDescription = trim(filter_var($_POST['brand_description'] ?? '', FILTER_SANITIZE_SPECIAL_CHARS));
-    // Cast/validate status (defaults to 0)
-    $brandStatus = isset($_POST['brand_status']) ? (int) $_POST['brand_status'] : 0;
+    $brandStatus      = trim($_POST['brand_status'] ?? '');
 
+    // Validate required fields
     if ($brandName === '' || $brandDescription === '') {
         header('Location: ' . basename(__FILE__) . '?inputError=1');
         exit;
     }
 
-    $table = 'brand_tbl';
+    // Prepare data for insert
+    $table  = 'brand_tbl';
     $params = [
-        'brand_name' => $brandName,
+        'brand_name'        => $brandName,
         'brand_description' => $brandDescription,
-        'brand_status' => $brandStatus
+        'brand_status'      => $brandStatus
     ];
 
     $redirect = basename(__FILE__) . '?success=1';
     $obj->insert($table, $params, $redirect);
 }
+
+
+if(isset($_GET['id'])){
+    $id = filter_var($_GET['id'], FILTER_SANITIZE_NUMBER_INT);
+    $table = 'brand_tbl';
+    $redirect = basename(__FILE__) . '?success=1';
+    $obj->delete($table, "id = $id", $redirect);
+}
 ?>
+
 
 <!DOCTYPE html>
 <html lang="en">
@@ -66,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                     <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
                     <div class="form-group">
                         <label for="brand-name">Brand Name *</label>
-                        <input type="text" id="brand-name" name="brand_name">
+                        <input type="text" id="brand_name" name="brand_name">
                     </div>
 
                     <div class="form-group">
@@ -74,41 +85,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                         <textarea id="brand-description" name="brand_description" placeholder="Brief description of the brand"></textarea>
                     </div>
                     <div class="form-group">
-                        <select name="brand_status" class="filter-select">
+                        <select name="brand_status" class="filter-select" required>
                             <option value="" disabled selected>Select Status</option>
                             <option value="active">Active</option>
                             <option value="inactive">Inactive</option>
                             <option value="draft">Draft</option>
                         </select>
                     </div>
+
                     <button type="submit" name="submit" class="btn btn-primary">Add Brand</button>
                 </form>
             </div>
 
+            <?php
+            $table = "brand_tbl";
+            $rows = "*";
+            $join = null;
+            $where = null;
+            $order = 'id DESC';
+            $limit = null;
+            $brands = $obj->select($table, $rows, $join, $where, $order, $limit);
+
+
+            ?>
             <div class="table-section">
                 <h2>Existing Brands</h2>
                 <input type="text" class="search-box" placeholder="Search brands...">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Brand Name</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>1</td>
-                            <td>Sample Brand</td>
-                            <td class="status-active">active</td>
-                            <td>
-                                <a href="#" class="btn btn-edit">Edit</a>
-                                <a href="#" onclick="return confirm('Are you sure?')" class="btn btn-danger">Delete</a>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
+                <?php $sl = 1;
+                if ($brands): ?>
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Brand Name</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($brands as $brand): ?>
+                                <tr>
+                                    <td><?= $sl++ ?></td>
+                                    <td><?= htmlspecialchars($brand['brand_name'])  ?></td>
+                                    <td class="status-active"><?= htmlspecialchars($brand['brand_status']) ?></td>
+                                    <td>
+                                        <a href="#" class="btn btn-edit">Edit</a>
+                                        <a href="brands.php?id=<?= $brand['id'] ?>" onclick="return confirm('Are you sure?')" class="btn btn-danger">Delete</a>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                <?php else: ?>
+                    <div> No Record Found! </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>

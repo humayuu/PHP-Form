@@ -1,16 +1,16 @@
 <?php
-// Class Start Here
+// Database Class Start Here
+
 class Database
 {
 
     private $dsn = "mysql:host=localhost;dbname=php_form_db;charset=utf8mb4";
     private $user = "root";
     private $password = "";
-
     private $pdo = null;
-    private $result = [];
+    public $result = [];
 
-    // Constructor: Initialize PDO connection
+    // Function for Connection to Database
     public function __construct()
     {
         try {
@@ -19,25 +19,25 @@ class Database
                 $this->user,
                 $this->password,
                 [
-                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,      // Throw exceptions on errors
-                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC, // Fetch associative arrays by default
-                    PDO::ATTR_EMULATE_PREPARES => false               // Use real prepared statements
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                    PDO::ATTR_EMULATE_PREPARES => false
                 ]
             );
         } catch (PDOException $e) {
-            throw new Exception("Database connection failed: " . $e->getMessage());
+            throw new Exception("Database connection failed " . $e->getMessage());
         }
     }
 
 
-    // Function to check if a table exists in the database
+    // Function for Check if Table Exists in Database
     protected function tableExists($table)
     {
         try {
-            $stmt = $this->pdo->prepare("SHOW TABLES LIKE :table");
-            $stmt->execute([':table' => $table]);
+            // Escape table name safely
+            $stmt = $this->pdo->query("SHOW TABLES LIKE " . $this->pdo->quote($table));
 
-            if ($stmt->rowCount() === 1) {
+            if ($stmt->rowCount() > 0) {
                 return true;
             } else {
                 $this->result[] = "Table `$table` does not exist in this database.";
@@ -50,44 +50,54 @@ class Database
     }
 
 
-    // Function for Insert Record into the Database
-    public function insert($table, $params = [], $redirect = null)
+    // Function for Insert Record in Database
+    public function insert($table, $param = [], $redirect = null)
     {
         if (!$this->tableExists($table)) {
             return false;
         }
 
-        if (empty($params) || !is_array($params)) {
-            $this->result = "No Data Provided For Insert.";
+        if (empty($param) || !is_array($param)) {
+            $this->result[] = "No data provided for insert.";
             return false;
         }
 
         try {
-            $column = implode(",", array_keys($params));
-            $value  = ":" . implode(",:", array_keys($params));
+            $this->pdo->beginTransaction();
 
-            $stmt = $this->pdo->prepare("INSERT INTO $table ($column) VALUES ($value)");
-            $result =  $stmt->execute($params);
+            $columns = implode(',', array_keys($param));
+            $values  = ":" . implode(',:', array_keys($param));
 
-            if ($result) {
-                $lastId = $this->pdo->lastInsertId();
+            $insert = $this->pdo->prepare("INSERT INTO $table ($columns) VALUES ($values)");
+            $result = $insert->execute($param);
 
-                if ($redirect) {
-                    header("Location: " . $redirect);
-                    exit;
-                }
-
-                return $lastId;
+            if (!$result) {
+                $this->pdo->rollBack();
+                $errorInfo = $insert->errorInfo();
+                $this->result[] = "Insert failed: " . ($errorInfo[2] ?? 'Unknown error');
+                return false;
             }
-            return false;
+
+            $lastId = $this->pdo->lastInsertId();
+
+            $this->pdo->commit();
+
+            if ($redirect) {
+                header("Location: " . $redirect);
+                exit;
+            }
+
+            return $lastId;
         } catch (PDOException $e) {
-            $this->result[] = "Error in Inserting Record: " . $e->getMessage();
+            $this->pdo->rollBack();
+            $this->result[] = "Error inserting record: " . $e->getMessage();
             return false;
         }
     }
 
 
-    // Function for Fetch Data
+
+    // Function For Fetch Record Form Database
     public function select($table, $rows = "*", $join = null, $where = null, $order = null, $limit = null)
     {
         if (!$this->tableExists($table)) {
@@ -103,42 +113,43 @@ class Database
         if ($where != null) {
             $sql .= " WHERE $where";
         }
+
         if ($order != null) {
             $sql .= " ORDER BY $order";
         }
+
         if ($limit != null) {
             $sql .= " LIMIT $limit";
         }
-
-
         try {
-            $stmt = $this->pdo->prepare($sql);
-            $stmt->execute();
-            $this->result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $select = $this->pdo->prepare($sql);
+            $select->execute();
+            $this->result = $select->fetchAll(PDO::FETCH_ASSOC);
             return $this->result;
         } catch (PDOException $e) {
-            $this->result[] = "Error in Fetch Record: " . $e->getMessage();
+            $this->result[] = "Error in fetch record " . $e->getMessage();
             return false;
         }
     }
 
-    // Function for Update Data
-    public function update($table, $params = [], $where = null, $redirect = null)
+
+    // Function for Update Record in Database
+    public function update($table, $param = [], $where = null, $redirect = null)
     {
         if (!$this->tableExists($table)) {
             return false;
         }
 
-        if (empty($params) || !is_array($params)) {
-            $this->result[] = "No data provided for update.";
+        if (empty($param) || !is_array($param)) {
+            $this->result[] = "No data provide for update.";
             return false;
         }
 
         try {
-            // Build SET clause: col1 = :col1, col2 = :col2
+            $this->pdo->beginTransaction();
             $setClause = implode(", ", array_map(function ($col) {
                 return "$col = :$col";
-            }, array_keys($params)));
+            }, array_keys($param)));
 
             $sql = "UPDATE $table SET $setClause";
 
@@ -146,26 +157,29 @@ class Database
                 $sql .= " WHERE $where";
             }
 
-            $stmt = $this->pdo->prepare($sql);
-            $result = $stmt->execute($params);
-
-            if ($result) {
-                if ($redirect) {
-                    header("Location: " . $redirect);
-                    exit;
-                }
-                return true; // Update successful
+            $update = $this->pdo->prepare($sql);
+            $result = $update->execute($param);
+            if (!$result) {
+                // rollback and capture error info
+                $this->pdo->rollBack();
+                $errorInfo = $update->errorInfo();
+                $this->result[] = "Update failed: " . (isset($errorInfo[2]) ? $errorInfo[2] : 'Unknown error');
+                return false;
             }
 
-            return false;
+            $this->pdo->commit();
+            if ($redirect) {
+                header("Location: " . $redirect);
+                exit;
+            }
+
+            return true;
         } catch (PDOException $e) {
-            $this->result[] = "Error in updating record: " . $e->getMessage();
+            $this->result[] = "Error in update record " . $e->getMessage();
             return false;
         }
     }
-
-
-    // Function for Delete Data
+    // Function for Delete Record in Database
     public function delete($table, $where = null, $redirect = null)
     {
         if (!$this->tableExists($table)) {
@@ -173,26 +187,35 @@ class Database
         }
 
         try {
+            $this->pdo->beginTransaction();
 
-            $sql = "DELETE FROM $table";
+            $sql = "DELETE FROM `$table`";
 
-            if ($where != null) {
+            if ($where !== null) {
                 $sql .= " WHERE $where";
             }
 
-            $stmt = $this->pdo->prepare($sql);
-            $result = $stmt->execute();
+            $delete = $this->pdo->prepare($sql);
 
-            if ($result) {
-                if ($redirect) {
-                    header("Location: " . $redirect);
-                    exit;
-                }
-                return true; // Delete successful
+            $result = $delete->execute();
+
+            if (!$result) {
+                $this->pdo->rollBack();
+                $errorInfo = $delete->errorInfo();
+                $this->result[] = "Delete failed: " . ($errorInfo[2] ?? 'Unknown error');
+                return false;
             }
 
-            return false;
+            $this->pdo->commit();
+
+            if ($redirect) {
+                header("Location: " . $redirect);
+                exit;
+            }
+
+            return true;
         } catch (PDOException $e) {
+            $this->pdo->rollBack();
             $this->result[] = "Error in delete record: " . $e->getMessage();
             return false;
         }
@@ -200,9 +223,10 @@ class Database
 
 
 
+
     // Function for Close Connection to Database
     public function __destruct()
     {
-        $this->pdo = null;
+        $this->pdo =  null;
     }
 } // Class Ends Here
