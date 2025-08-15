@@ -1,3 +1,56 @@
+<?php
+require 'Database.php';
+session_start();
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
+$obj = new Database();
+$table = "category_tbl";
+
+
+
+// For Insert Data
+if ($_SERVER['REQUEST_METHOD'] === "POST" && isset($_POST['isSubmitted'])) {
+    if (!hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        header("Location: " . basename(__FILE__) . "?csrfError=1");
+        exit;
+    }
+
+    $categoryName = trim(filter_var($_POST['category_name'], FILTER_SANITIZE_SPECIAL_CHARS));
+    $categoryDescription = trim(filter_var($_POST['category_description'], FILTER_SANITIZE_SPECIAL_CHARS));
+    $categorySlug = trim(filter_var($_POST['category_slug'], FILTER_SANITIZE_SPECIAL_CHARS));
+    $categoryStatus = trim(filter_var($_POST['category_status'], FILTER_SANITIZE_SPECIAL_CHARS));
+
+    $params = ["category_name" => $categoryName, 'category_description' => $categoryDescription, 'category_slug' => $categorySlug, 'category_status' => $categoryStatus];
+    $redirect = basename(__FILE__) . "?success=1";
+
+    $obj->insert($table, $params, $redirect);
+}
+
+// For Fetch All Data
+$rows = "*";
+$join = null;
+$where = null;
+$order = "id DESC";
+$limit = null;
+
+$categories = $obj->selectAll($table, $rows, $join, $where, $order, $limit);
+
+
+// for Delete Data
+if (isset($_GET['id'])) {
+    $id = (int) $_GET['id']; // Numeric value
+    $where = "id = :id";
+    $params = [":id" => $id];
+    $redirect = basename(__FILE__) . "?success=1";
+    $obj->delete($table, $where, $params, $redirect);
+}
+
+
+
+
+?>
 <!DOCTYPE html>
 <html lang="en">
 
@@ -22,8 +75,8 @@
             <div class="form-section">
                 <h2>Add New Category</h2>
 
-                <form method="post" action="#">
-                    <input type="hidden" name="csrf_token" value="">
+                <form method="POST" action="<?= basename(__FILE__) ?>">
+                    <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
                     <div class="form-group">
                         <label for="category-name">Category Name *</label>
                         <input type="text" id="category-name" name="category_name">
@@ -31,7 +84,8 @@
 
                     <div class="form-group">
                         <label for="category-description">Description</label>
-                        <textarea id="category-description" name="category_description" placeholder="Describe this category"></textarea>
+                        <textarea id="category-description" name="category_description"
+                            placeholder="Describe this category"></textarea>
                     </div>
 
                     <div class="form-group">
@@ -56,6 +110,10 @@
             <div class="table-section">
                 <h2>Existing Categories</h2>
                 <input type="text" class="search-box" placeholder="Search categories...">
+                <?php $sl = 1;
+                if ($categories):
+
+                ?>
                 <table class="table">
                     <thead>
                         <tr>
@@ -68,41 +126,25 @@
                         </tr>
                     </thead>
                     <tbody>
+                        <?php foreach ($categories as $category): ?>
                         <tr>
-                            <td>1</td>
-                            <td>Electronics</td>
-                            <td>electronics</td>
+                            <td><?= $sl++ ?></td>
+                            <td><?= $category['category_name'] ?></td>
+                            <td><?= $category['category_slug'] ?></td>
                             <td>45</td>
-                            <td><span class="status-active">active</span></td>
+                            <td><span class="status-active"><?= $category['category_status'] ?></span></td>
                             <td>
-                                <a href="#" class="btn btn-edit">Edit</a>
-                                <a href="#" onclick="return confirm('Are you sure?')" class="btn btn-danger">Delete</a>
+                                <a href="categories_edit.php?id=<?= $category['id'] ?>" class="btn btn-edit">Edit</a>
+                                <a href="<?= basename(__FILE__) . "?id=" . $category['id'] ?>"
+                                    onclick="return confirm('Are you sure?')" class="btn btn-danger">Delete</a>
                             </td>
                         </tr>
-                        <tr>
-                            <td>2</td>
-                            <td>Clothing</td>
-                            <td>clothing</td>
-                            <td>32</td>
-                            <td><span class="status-active">active</span></td>
-                            <td>
-                                <a href="#" class="btn btn-edit">Edit</a>
-                                <a href="#" onclick="return confirm('Are you sure?')" class="btn btn-danger">Delete</a>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>3</td>
-                            <td>Books</td>
-                            <td>books</td>
-                            <td>28</td>
-                            <td><span class="status-active">inactive</span></td>
-                            <td>
-                                <a href="#" class="btn btn-edit">Edit</a>
-                                <a href="#" onclick="return confirm('Are you sure?')" class="btn btn-danger">Delete</a>
-                            </td>
-                        </tr>
+                        <?php endforeach; ?>
                     </tbody>
                 </table>
+                <?php else: ?>
+                <div>No Record Found!</div>
+                <?php endif; ?>
             </div>
         </div>
     </div>

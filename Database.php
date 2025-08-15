@@ -143,12 +143,11 @@ class Database
     }
 
     // Function for update Data into Database
-    public function update($table, $params = [], $where = null, $redirect = null)
+    public function update($table, $params = [], $where = null)
     {
         if (!$this->tableExists($table)) {
             return false;
         }
-
 
         if (empty($params) || !is_array($params)) {
             $this->error[] = "No data provided for update.";
@@ -156,9 +155,12 @@ class Database
         }
 
         try {
+            $this->pdo->beginTransaction();
+
             $setClause = implode(", ", array_map(function ($col) {
                 return "$col = :$col";
             }, array_keys($params)));
+
             $sql = "UPDATE $table SET $setClause";
             if ($where !== null) $sql .= " WHERE $where";
 
@@ -167,25 +169,18 @@ class Database
 
             if (!$result) {
                 $this->pdo->rollBack();
-
                 $errorInfo = $stmt->errorInfo();
-                $this->error[] = "Update failed " . ($errorInfo[2] ?? "Unknown Error");
+                $this->error[] = "Update failed: " . ($errorInfo[2] ?? "Unknown Error");
                 return false;
             }
 
             $affected = $stmt->rowCount();
             $this->pdo->commit();
 
-            if ($redirect) {
-                header("Location: " . $redirect);
-                exit;
-            }
-            return $affected;
+            return $affected; // return affected rows
         } catch (PDOException $e) {
-            if ($this->pdo->inTransaction()) {
-                $this->pdo->rollBack();
-            }
-            $this->error[] = "Error in update " . $e->getMessage();
+            if ($this->pdo->inTransaction()) $this->pdo->rollBack();
+            $this->error[] = "Error in update: " . $e->getMessage();
             return false;
         }
     }

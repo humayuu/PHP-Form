@@ -17,7 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
     }
 
     // Sanitize inputs
-    $bid = htmlspecialchars($_POST['bid']);
+    $bid = htmlspecialchars($_POST['id']);
     $brandName        = trim(filter_var($_POST['brand_name'] ?? '', FILTER_SANITIZE_SPECIAL_CHARS));
     $brandDescription = trim(filter_var($_POST['brand_description'] ?? '', FILTER_SANITIZE_SPECIAL_CHARS));
     $brandStatus      = trim($_POST['brand_status'] ?? '');
@@ -38,11 +38,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
     $where = "id = $bid";
 
     $redirect = 'brands.php?success=1';
-    $obj->update($table, $params, $where, $redirect);
+    $obj->update($table, $params, $where);
+    $affected = $obj->update($table, $params, $where);
+    if ($affected !== false) {
+        header('Location: brands.php?success=1');
+        exit;
+    } else {
+        echo "Update failed!";
+        print_r($obj->getErrors());
+    }
 }
 
-if (isset($_GET['id'])) {
-    $id = htmlspecialchars($_GET['id']);
+if (isset($_GET['bid'])) {
+    $id = htmlspecialchars($_GET['bid']);
 
 
     $table = "brand_tbl";
@@ -85,26 +93,32 @@ if (isset($_GET['id'])) {
 
                 <form method="post" action="<?= basename(__FILE__) ?>">
                     <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
-                    <input type="hidden" name="bid" value="<?= $brand['id'] ?>">
+                    <input type="hidden" name="id" value="<?= $brand['id'] ?>">
                     <div class="form-group">
                         <label for="brand-name">Brand Name *</label>
-                        <input type="text" id="brand_name" name="brand_name" value="<?= htmlspecialchars($brand['brand_name']) ?>">
+                        <input type="text" id="brand_name" name="brand_name"
+                            value="<?= htmlspecialchars($brand['brand_name']) ?>">
                     </div>
 
                     <div class="form-group">
                         <label for="brand-description">Description</label>
-                        <textarea id="brand-description" name="brand_description" placeholder="Brief description of the brand"><?= htmlspecialchars($brand['brand_description']) ?></textarea>
+                        <textarea id="brand-description" name="brand_description"
+                            placeholder="Brief description of the brand"><?= htmlspecialchars($brand['brand_description']) ?></textarea>
                     </div>
                     <div class="form-group">
                         <select name="brand_status" class="filter-select" required>
                             <option value="" disabled selected>Select Status</option>
-                            <option value="active" <?= ($brand['brand_status'] == 'active') ? 'selected' : null ?>>Active</option>
-                            <option value="inactive" <?= ($brand['brand_status'] == 'inactive') ? 'selected' : null ?>>Inactive</option>
+                            <option value="active" <?= ($brand['brand_status'] == 'active') ? 'selected' : null ?>>
+                                Active</option>
+                            <option value="inactive" <?= ($brand['brand_status'] == 'inactive') ? 'selected' : null ?>>
+                                Inactive</option>
                         </select>
                     </div>
 
                     <button type="submit" name="submit" class="btn btn-primary">Update Brand</button>
-                    <a href="brands.php" style="text-decoration: none; margin-left: 20px; background-color: #eb3333ff; color: #ffff; padding:10px; border-radius:8px;">Back to Home</a>
+                    <a href="brands.php"
+                        style="text-decoration: none; margin-left: 20px; background-color: #eb3333ff; color: #ffff; padding:10px; border-radius:8px;">Back
+                        to Home</a>
                 </form>
             </div>
 
