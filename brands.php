@@ -1,54 +1,57 @@
 <?php
 require 'Database.php';
 session_start();
+$obj = new Database();
 
-// Ensure CSRF token exists
-if (!isset($_SESSION['csrf_token'])) {
+if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
-$obj = new Database();
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
-    // CSRF check
-    if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
-        header('Location: ' . basename(__FILE__) . '?csrfError=1');
+// For Insert Data
+if ($_SERVER['REQUEST_METHOD'] === "POST" && isset($_POST['submit'])) {
+    if (!hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        header("Location: " . basename(__FILE__) . "?csrfError=1");
         exit;
     }
 
-    // Sanitize inputs
-    $brandName        = trim(filter_var($_POST['brand_name'] ?? '', FILTER_SANITIZE_SPECIAL_CHARS));
-    $brandDescription = trim(filter_var($_POST['brand_description'] ?? '', FILTER_SANITIZE_SPECIAL_CHARS));
-    $brandStatus      = trim($_POST['brand_status'] ?? '');
+    $brandName = trim(filter_var($_POST['brand_name'], FILTER_SANITIZE_SPECIAL_CHARS));
+    $brandDescription = trim(filter_var($_POST['brand_description'], FILTER_SANITIZE_SPECIAL_CHARS));
+    $brandStatus = trim(filter_var($_POST['brand_status'], FILTER_SANITIZE_SPECIAL_CHARS));
 
-    // Validate required fields
-    if ($brandName === '' || $brandDescription === '') {
-        header('Location: ' . basename(__FILE__) . '?inputError=1');
+    if (empty($brandName) || empty($brandDescription)) {
+        header("Location: " . basename(__FILE__) . "?inputError=1");
         exit;
     }
+    $table = "brand_tbl";
+    $params = ['brand_name' => $brandName, 'brand_description' =>  $brandDescription, 'brand_status' => $brandStatus];
+    $redirect = basename(__FILE__) . "?success=1";
 
-    // Prepare data for insert
-    $table  = 'brand_tbl';
-    $params = [
-        'brand_name'        => $brandName,
-        'brand_description' => $brandDescription,
-        'brand_status'      => $brandStatus
-    ];
-
-    $redirect = basename(__FILE__) . '?success=1';
     $obj->insert($table, $params, $redirect);
 }
 
 
-if(isset($_GET['id'])){
-    $id = filter_var($_GET['id'], FILTER_SANITIZE_NUMBER_INT);
-    $table = 'brand_tbl';
-    $redirect = basename(__FILE__) . '?success=1';
-    $obj->delete($table, "id = $id", $redirect);
+// For Select All Data
+$table = "brand_tbl";
+$rows = "*";
+$join = null;
+$where = "brand_status = 'active'";
+$order = "id DESC";
+$limit = null;
+
+$brands = $obj->selectAll($table, $rows, $join, $where, $order, $limit);
+
+if (isset($_GET['id'])) {
+    $id = (int)$_GET['id']; // ensure numeric
+    $where = "id = :id";
+    $params = ['id' => $id];
+    $table = "brand_tbl";
+    $redirect = basename(__FILE__) . "?success=1";
+
+    $obj->delete($table, $where, $params, $redirect);
 }
+
+
 ?>
-
-
 <!DOCTYPE html>
 <html lang="en">
 
@@ -73,7 +76,7 @@ if(isset($_GET['id'])){
             <div class="form-section">
                 <h2>Add New Brand</h2>
 
-                <form method="post" action="<?= basename(__FILE__) ?>">
+                <form method="POST" action="<?= basename(__FILE__) ?>">
                     <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
                     <div class="form-group">
                         <label for="brand-name">Brand Name *</label>
@@ -82,7 +85,8 @@ if(isset($_GET['id'])){
 
                     <div class="form-group">
                         <label for="brand-description">Description</label>
-                        <textarea id="brand-description" name="brand_description" placeholder="Brief description of the brand"></textarea>
+                        <textarea id="brand-description" name="brand_description"
+                            placeholder="Brief description of the brand"></textarea>
                     </div>
                     <div class="form-group">
                         <select name="brand_status" class="filter-select" required>
@@ -97,47 +101,40 @@ if(isset($_GET['id'])){
                 </form>
             </div>
 
-            <?php
-            $table = "brand_tbl";
-            $rows = "*";
-            $join = null;
-            $where = null;
-            $order = 'id DESC';
-            $limit = null;
-            $brands = $obj->select($table, $rows, $join, $where, $order, $limit);
 
-
-            ?>
             <div class="table-section">
                 <h2>Existing Brands</h2>
                 <input type="text" class="search-box" placeholder="Search brands...">
                 <?php $sl = 1;
                 if ($brands): ?>
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>Brand Name</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($brands as $brand): ?>
-                                <tr>
-                                    <td><?= $sl++ ?></td>
-                                    <td><?= htmlspecialchars($brand['brand_name'])  ?></td>
-                                    <td class="status-active"><?= htmlspecialchars($brand['brand_status']) ?></td>
-                                    <td>
-                                        <a href="brands_edit.php?id=<?= $brand['id'] ?>" class="btn btn-edit">Edit</a>
-                                        <a href="<?= basename(__FILE__) . '?id=' . $brand['id'] ?>" onclick="return confirm('Are you sure?')" class="btn btn-danger">Delete</a>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Brand Name</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($brands as $brand): ?>
+                        <tr>
+                            <td><?=
+                                        $sl++; ?></td>
+                            <td><?= htmlspecialchars($brand['brand_name']) ?></td>
+                            <td class="status-active"><?= htmlspecialchars($brand['brand_status']) ?></td>
+                            <td>
+                                <a href="brands_edit.php?bid=<?= $brand['id'] ?>" class="btn btn-edit">Edit</a>
+                                <a href="brands.php?id=<?= $brand['id'] ?>" onclick="return confirm('Are you sure?')"
+                                    class="btn btn-danger">Delete</a>
+
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
                 <?php else: ?>
-                    <div> No Record Found! </div>
+                <div> No Record Found! </div>
                 <?php endif; ?>
             </div>
         </div>
