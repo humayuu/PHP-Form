@@ -1,15 +1,15 @@
 <?php
 // Class Start Here
+
 class Database
 {
     private $dsn = "mysql:host=localhost;dbname=php_form_db;charset=utf8mb4";
     private $userName = "root";
     private $password = "";
     private $pdo = null;
-    private $result = [];
     private $error = [];
+    private  $result = [];
 
-    //Function for Connection to Database
     public function __construct()
     {
         try {
@@ -22,61 +22,56 @@ class Database
                     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                     PDO::ATTR_EMULATE_PREPARES => false
                 ]
+
+
             );
         } catch (PDOException $e) {
-            throw new Exception("Connection failed in " . $e->getMessage());
+            throw new Exception("Database Connection Failed " . $e->getMessage());
         }
     }
 
-    // Function for Check if the table is Exists in Database
+    // Function for check if the table is exists in Database or not
     protected function tableExists($table)
     {
         try {
+            $sql = $this->pdo->query("SHOW TABLES LIKE " . $this->pdo->quote($table));
 
-            $stmt =  $this->pdo->query("SHOW TABLES LIKE " . $this->pdo->quote($table));
-
-            if ($stmt->rowCount() > 0) {
+            if ($sql->rowCount() > 0) {
                 return true;
             } else {
-                $this->result[] = "Table " . $table . " does not exists in this database.";
+                $this->error[] = "Table " . $table . " does not exists in this database.";
                 return false;
             }
         } catch (PDOException $e) {
-            $this->error[] = "Error in check table " . $e->getMessage();
+            $this->error[] = "Error in finding table in database " . $e->getMessage();
             return false;
         }
     }
 
-    // Function for insert data into Database
+    // Function for Insert data into Database
     public function insert($table, $params = [], $redirect = null)
     {
-        if (!$this->tableExists($table)) {
-            return false;
-        }
-
+        if (!$this->tableExists($table)) return false;
 
         if (empty($params) || !is_array($params)) {
-            $this->error[] = "No data provided for insert.";
+            $this->error[] = "Does not provide a data for insert";
             return false;
         }
 
         try {
             $this->pdo->beginTransaction();
-
-            $columns = implode(', ', array_keys($params));
-            $values  = ":" .  implode(' ,:', array_keys($params));
+            $columns = implode(', ',  array_keys($params));
+            $values  = ":" . implode(',:', array_keys($params));
 
             $stmt = $this->pdo->prepare("INSERT INTO $table ($columns) VALUES ($values)");
-            $result = $stmt->execute($params);
+            $result =  $stmt->execute($params);
 
             if (!$result) {
                 $this->pdo->rollBack();
-
-                $errorInfo = $stmt->errorInfo();
-                $this->error[] = "Insert failed: " . ($errorInfo[2] ?? 'Unknown error');
+                $errorInfo = $this->pdo->errorInfo();
+                $this->error[] = "Insert failed" .  ($errorInfo[2] ?? 'Unknown error');
                 return false;
             }
-
             $lastId = $this->pdo->lastInsertId();
             $this->pdo->commit();
 
@@ -84,12 +79,9 @@ class Database
                 header("Location: " . $redirect);
                 exit;
             }
-
             return $lastId;
         } catch (PDOException $e) {
-            if ($this->pdo->inTransaction()) {
-                $this->pdo->rollBack();
-            }
+            if ($this->pdo->inTransaction()) $this->pdo->rollBack();
             $this->error[] = "Error in insert " . $e->getMessage();
             return false;
         }
@@ -98,9 +90,8 @@ class Database
     // Function for Fetch all Data from Database
     public function selectAll($table, $rows = "*", $join = null, $where = null, $order = null, $limit = null)
     {
-        if (!$this->tableExists($table)) {
-            return false;
-        }
+        if (!$this->tableExists($table)) return false;
+
         $sql = "SELECT $rows FROM $table";
         if ($join !== null)  $sql .= " $join";
         if ($where !== null) $sql .= " WHERE $where";
@@ -122,9 +113,8 @@ class Database
     // Function for Fetch all Data from Database
     public function selectId($table, $rows = "*", $join = null, $where = null, $params = [], $order = null, $limit = null)
     {
-        if (!$this->tableExists($table)) {
-            return false;
-        }
+        if (!$this->tableExists($table)) return false;
+
         $sql = "SELECT $rows FROM $table";
         if ($join !== null)  $sql .= " $join";
         if ($where !== null) $sql .= " WHERE $where";
@@ -134,7 +124,7 @@ class Database
         try {
             $stmt = $this->pdo->prepare($sql);
             $stmt->execute($params);
-            $this->result =  $stmt->fetch(); //Single Row
+            $this->result =  $stmt->fetch(); // Single Row
             return $this->result;
         } catch (PDOException $e) {
             $this->error[] = "Error in Fetch all Data " . $e->getMessage();
@@ -145,77 +135,75 @@ class Database
     // Function for update Data into Database
     public function update($table, $params = [], $where = null)
     {
-        if (!$this->tableExists($table)) {
-            return false;
-        }
+        if (!$this->tableExists($table)) return false;
 
         if (empty($params) || !is_array($params)) {
-            $this->error[] = "No data provided for update.";
+            $this->error[] = "Does not provide a data for update";
             return false;
         }
 
         try {
+
             $this->pdo->beginTransaction();
 
-            $setClause = implode(", ", array_map(function ($col) {
+            $setClause = implode(', ', array_map(function ($col) {
                 return "$col = :$col";
             }, array_keys($params)));
 
             $sql = "UPDATE $table SET $setClause";
             if ($where !== null) $sql .= " WHERE $where";
-
             $stmt = $this->pdo->prepare($sql);
             $result = $stmt->execute($params);
 
             if (!$result) {
                 $this->pdo->rollBack();
-                $errorInfo = $stmt->errorInfo();
-                $this->error[] = "Update failed: " . ($errorInfo[2] ?? "Unknown Error");
+                $errorInfo = $this->pdo->errorInfo();
+                $this->error[] = "update failed" .  ($errorInfo[2] ?? 'Unknown error');
                 return false;
             }
-
             $affected = $stmt->rowCount();
             $this->pdo->commit();
-
             return $affected; // return affected rows
         } catch (PDOException $e) {
             if ($this->pdo->inTransaction()) $this->pdo->rollBack();
-            $this->error[] = "Error in update: " . $e->getMessage();
+            $this->error[] = "Error in update " . $e->getMessage();
             return false;
         }
     }
 
-    // Function for Delete Data in Database
+
+    // Function for delete Data into Database
     public function delete($table, $where = null, $params = [], $redirect = null)
     {
-        if (!$this->tableExists($table)) {
+        if (!$this->tableExists($table)) return false;
+
+        if (empty($params) || !is_array($params)) {
+            $this->error[] = "Does not provide a data for update";
             return false;
         }
 
         try {
+
             $this->pdo->beginTransaction();
 
             $sql = "DELETE FROM $table";
             if ($where !== null) $sql .= " WHERE $where";
-
             $stmt = $this->pdo->prepare($sql);
             $result = $stmt->execute($params);
 
             if (!$result) {
                 $this->pdo->rollBack();
-                $errorInfo = $stmt->errorInfo();
-                $this->error[] = "Delete failed " . ($errorInfo[2] ?? "Unknown Error");
+                $errorInfo = $this->pdo->errorInfo();
+                $this->error[] = "Delete failed" .  ($errorInfo[2] ?? 'Unknown error');
                 return false;
             }
-
             $affected = $stmt->rowCount();
             $this->pdo->commit();
-
             if ($redirect) {
                 header("Location: " . $redirect);
                 exit;
             }
-            return $affected;
+            return $affected; // return affected rows
         } catch (PDOException $e) {
             if ($this->pdo->inTransaction()) $this->pdo->rollBack();
             $this->error[] = "Error in delete " . $e->getMessage();
@@ -223,22 +211,22 @@ class Database
         }
     }
 
-
-    // Function for Get Error
+    // Function for get error
     public function getErrors()
     {
         return $this->error;
     }
 
-    // Function for Get Error
+    // Function for get error
     public function getResult()
     {
         return $this->result;
     }
 
-    // Function for close Connection
+
+    // Function for Close Connection to Database
     public function __destruct()
     {
         $this->pdo = null;
     }
-} // Class Ends Here
+} // Class ends Here

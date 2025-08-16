@@ -1,3 +1,78 @@
+<?php
+require 'Database.php';
+session_start();
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
+$obj = new Database();
+
+if ($_SERVER['REQUEST_METHOD'] === "POST" && isset($_POST['submit'])) {
+    if (!hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        header("Location: " . basename(__FILE__) . "?csrfError=1");
+        exit;
+    }
+
+    $category = trim(filter_var($_POST['category'], FILTER_SANITIZE_SPECIAL_CHARS));
+    $subCategory = trim(filter_var($_POST['subcategory_name'], FILTER_SANITIZE_SPECIAL_CHARS));
+    $subCategoryDescription = trim(filter_var($_POST['subcategory_description'], FILTER_SANITIZE_SPECIAL_CHARS));
+    $subCategorySlug = trim(filter_var($_POST['subcategory_slug'], FILTER_SANITIZE_SPECIAL_CHARS));
+    $subCategoryStatus = trim(filter_var($_POST['subcategory_status'], FILTER_SANITIZE_SPECIAL_CHARS));
+
+    if (empty($subCategory) || empty($subCategoryDescription)) {
+        header("Location: " . basename(__FILE__) . "?inputError=1");
+        exit;
+    }
+
+    $table = "sub_category_tbl";
+    $params = [
+        'category_id' => $category,
+        'sub_category_name' => $subCategory,
+        'sub_category_description' => $subCategoryDescription,
+        'sub_category_slug' => $subCategorySlug,
+        'sub_category_status' => $subCategoryStatus
+    ];
+
+    $redirect = basename(__FILE__) . "?success=1";
+
+    $obj->insert($table, $params, $redirect);
+}
+
+//For Fetch all data
+$table = "sub_category_tbl";
+
+$rows = "sub_category_tbl.id,
+         sub_category_tbl.category_id,
+         sub_category_tbl.sub_category_name,
+         sub_category_tbl.sub_category_description,
+         sub_category_tbl.sub_category_slug,
+         sub_category_tbl.sub_category_status,
+         category_tbl.id AS category_id,
+         category_tbl.category_name";
+
+$join = "LEFT JOIN category_tbl ON sub_category_tbl.category_id = category_tbl.id";
+
+$where = null;
+$order = "sub_category_tbl.sub_category_name";
+$limit = null;
+
+$subCategories = $obj->selectAll($table, $rows, $join, $where, $order, $limit);
+
+
+// FOr Delete
+if (isset($_GET['id'])) {
+    $id = (int)$_GET['id']; // ensure numeric
+    $where = "id = :id";
+    $params = ['id' => $id];
+    $table = "sub_category_tbl";
+    $redirect = basename(__FILE__) . "?success=1";
+
+    $obj->delete($table, $where, $params, $redirect);
+}
+
+
+
+?>
 <!DOCTYPE html>
 <html lang="en">
 
@@ -22,16 +97,25 @@
             <div class="form-section">
                 <h2>Add New Sub Category</h2>
 
-                <form method="post" action="#">
-                    <input type="hidden" name="csrf_token" value="">
+                <form method="POST" action="<?= basename(__FILE__) ?>">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
                     <div class="form-group">
+                        <?php
+                        $table = "category_tbl";
+                        $rows = "*";
+                        $join = null;
+                        $where = null;
+                        $order = "category_name";
+                        $limit = null;
+                        $categories = $obj->selectAll($table, $rows, $join, $where, $order, $limit);
+                        ?>
                         <label for="parent-category">Parent Category *</label>
                         <select id="parent-category" name="category">
                             <option value="" selected disabled>Select Parent Category</option>
-                            <option value="1">Electronics</option>
-                            <option value="2">Clothing</option>
-                            <option value="3">Books</option>
-                            <option value="4">Home & Garden</option>
+                            <?php foreach ($categories as $category): ?>
+                            <option value="<?= htmlspecialchars($category['id']) ?>">
+                                <?= htmlspecialchars($category['category_name']) ?></option>
+                            <?php endforeach; ?>
                         </select>
                     </div>
 
@@ -42,7 +126,8 @@
 
                     <div class="form-group">
                         <label for="subcategory-description">Description</label>
-                        <textarea id="subcategory-description" name="subcategory_description" placeholder="Describe this subcategory"></textarea>
+                        <textarea id="subcategory-description" name="subcategory_description"
+                            placeholder="Describe this subcategory"></textarea>
                     </div>
 
                     <div class="form-group">
@@ -67,6 +152,8 @@
             <div class="table-section">
                 <h2>Existing Sub Categories</h2>
                 <input type="text" class="search-box" placeholder="Search subcategories...">
+                <?php $sl = 1;
+                if ($subCategories): ?>
                 <table class="table">
                     <thead>
                         <tr>
@@ -79,68 +166,31 @@
                         </tr>
                     </thead>
                     <tbody>
+                        <?php foreach ($subCategories as $subCategory): ?>
                         <tr>
-                            <td>1</td>
-                            <td>Electronics</td>
-                            <td><span class="category-tag">Smartphones</span></td>
+                            <td><?=
+                                        $sl++ ?></td>
+                            <td><?= $subCategory['category_name'] ?></td>
+                            <td><span class="category-tag"><?= $subCategory['sub_category_name'] ?></span></td>
                             <td>25</td>
                             <td>
                                 <span class="status-active">
-                                    Active
+                                    <?= $subCategory['sub_category_status'] ?>
                                 </span>
                             </td>
                             <td>
-                                <a href="#" class="btn btn-edit">Edit</a>
-                                <a href="#" onclick="return confirm('Are You Sure')" class="btn btn-danger">Delete</a>
+                                <a href="subcategories_edit.php?id=<?= $subCategory['id'] ?>"
+                                    class="btn btn-edit">Edit</a>
+                                <a href="subcategories.php?id=<?= $subCategory['id'] ?>"
+                                    onclick="return confirm('Are You Sure')" class="btn btn-danger">Delete</a>
                             </td>
                         </tr>
-                        <tr>
-                            <td>2</td>
-                            <td>Electronics</td>
-                            <td><span class="category-tag">Laptops</span></td>
-                            <td>18</td>
-                            <td>
-                                <span class="status-active">
-                                    Active
-                                </span>
-                            </td>
-                            <td>
-                                <a href="#" class="btn btn-edit">Edit</a>
-                                <a href="#" onclick="return confirm('Are You Sure')" class="btn btn-danger">Delete</a>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>3</td>
-                            <td>Clothing</td>
-                            <td><span class="category-tag">T-Shirts</span></td>
-                            <td>32</td>
-                            <td>
-                                <span class="status-inactive">
-                                    Inactive
-                                </span>
-                            </td>
-                            <td>
-                                <a href="#" class="btn btn-edit">Edit</a>
-                                <a href="#" onclick="return confirm('Are You Sure')" class="btn btn-danger">Delete</a>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>4</td>
-                            <td>Electronics</td>
-                            <td><span class="category-tag">Headphones</span></td>
-                            <td>12</td>
-                            <td>
-                                <span class="status-active">
-                                    Active
-                                </span>
-                            </td>
-                            <td>
-                                <a href="#" class="btn btn-edit">Edit</a>
-                                <a href="#" onclick="return confirm('Are You Sure')" class="btn btn-danger">Delete</a>
-                            </td>
-                        </tr>
+                        <?php endforeach; ?>
                     </tbody>
                 </table>
+                <?php else: ?>
+                <div>No Record Found!</div>
+                <?php endif; ?>
             </div>
         </div>
     </div>
