@@ -65,19 +65,19 @@ class Database
 
         try {
 
-            $this->pdo->beginTransaction();
+            $this->beginTransaction();
             $stmt = $this->pdo->prepare("INSERT INTO $table ($columns) VALUES ($values)");
             $result = $stmt->execute($params);
 
             if (!$result) {
-                $this->pdo->rollBack();
+                $this->rollBack();
                 $errorInfo = $this->pdo->errorInfo();
                 $this->error[] = "Insert failed" .  ($errorInfo[2] ?? 'Unknown error');
                 return false;
             }
 
             $lastId = $this->pdo->lastInsertId();
-            $this->pdo->commit();
+            $this->commit();
 
             if ($redirect) {
                 header("Location: " .  $redirect);
@@ -86,7 +86,7 @@ class Database
 
             return $lastId;
         } catch (PDOException $e) {
-            if ($this->pdo->inTransaction()) $this->pdo->rollBack();
+            if ($this->pdo->inTransaction()) $this->rollBack();
 
             $this->error[] = "Error in insert " . $e->getMessage();
             return false;
@@ -164,23 +164,23 @@ class Database
 
         try {
 
-            $this->pdo->beginTransaction();
+            $this->beginTransaction();
             $stmt = $this->pdo->prepare($sql);
             $result = $stmt->execute($params);
 
             if (!$result) {
-                $this->pdo->rollBack();
+                $this->rollBack();
                 $errorInfo = $this->pdo->errorInfo();
                 $this->error[] = "Update failed" .  ($errorInfo[2] ?? 'Unknown error');
                 return false;
             }
 
             $affected = $stmt->rowCount();
-            $this->pdo->commit();
+            $this->commit();
 
             return $affected;
         } catch (PDOException $e) {
-            if ($this->pdo->inTransaction()) $this->pdo->rollBack();
+            if ($this->pdo->inTransaction()) $this->rollBack();
 
             $this->error[] = "Error in update Data " . $e->getMessage();
             return false;
@@ -201,25 +201,25 @@ class Database
         if ($where !== null) $sql .= " WHERE $where";
 
         try {
-            $this->pdo->beginTransaction();
+            $this->beginTransaction();
             $stmt = $this->pdo->prepare($sql);
             $result = $stmt->execute($params);
 
             if (!$result) {
-                $this->pdo->rollBack();
+                $this->rollBack();
                 $errorInfo = $this->pdo->errorInfo();
                 $this->error[] = "Delete failed" .  ($errorInfo[2] ?? 'Unknown error');
                 return false;
             }
             $affected = $stmt->rowCount();
-            $this->pdo->commit();
+            $this->commit();
             if ($redirect) {
                 header("Location: " . $redirect);
                 exit;
             }
             return $affected; // return affected rows
         } catch (PDOException $e) {
-            if ($this->pdo->inTransaction()) $this->pdo->rollBack();
+            if ($this->pdo->inTransaction()) $this->rollBack();
             $this->error[] = "Error in delete " . $e->getMessage();
             return false;
         }
@@ -231,6 +231,23 @@ class Database
         return $this->error;
     }
 
+    // Function for Begin Transaction
+    public function beginTransaction()
+    {
+        $this->pdo->beginTransaction();
+    }
+
+    // Function for rollback
+    public function rollBack()
+    {
+        $this->pdo->rollback();
+    }
+
+    // Function for rollback
+    public function commit()
+    {
+        $this->pdo->commit();
+    }
 
 
 
