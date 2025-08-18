@@ -45,7 +45,7 @@ if (isset($_GET['id'])) {
     $order =  null;
     $limit = null;
 
-    $category = $obj->selectId($table, $rows, $join, $where, $params, $order, $limit);
+    $category = $obj->selectOne($table, $rows, $join, $where, $params, $order, $limit);
 }
 
 

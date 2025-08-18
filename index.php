@@ -1,11 +1,18 @@
+<?php
+require 'Database.php';
+$obj = new Database();
+
+?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard</title>
     <link rel="stylesheet" href="./assets/dashboard.css">
 </head>
+
 <body>
     <div class="container">
         <div class="header">
@@ -45,22 +52,63 @@
 
         <div class="stats">
             <div class="stat-card">
-                <div class="stat-number">45</div>
+                <?php
+                $table = 'brand_tbl';
+                $rows = "*";
+                $join = null;
+                $where = null;
+                $order = null;
+                $limit = null;
+                $brands = $obj->selectAll($table, $rows, $join, $where, $order, $limit);
+
+                ?>
+                <div class="stat-number"><?= count($brands) ?></div>
                 <div class="stat-label">Total Brands</div>
             </div>
             <div class="stat-card">
-                <div class="stat-number">12</div>
+                <?php
+                $table = 'category_tbl';
+                $rows = "*";
+                $join = null;
+                $where = null;
+                $order = null;
+                $limit = null;
+                $category = $obj->selectAll($table, $rows, $join, $where, $order, $limit);
+
+                ?>
+                <div class="stat-number"><?= count($category) ?></div>
                 <div class="stat-label">Categories</div>
             </div>
             <div class="stat-card">
-                <div class="stat-number">38</div>
+                <?php
+                $table = 'sub_category_tbl';
+                $rows = "*";
+                $join = null;
+                $where = null;
+                $order = null;
+                $limit = null;
+                $subCategory = $obj->selectAll($table, $rows, $join, $where, $order, $limit);
+
+                ?>
+                <div class="stat-number"><?= count($subCategory) ?></div>
                 <div class="stat-label">Sub Categories</div>
             </div>
             <div class="stat-card">
-                <div class="stat-number">247</div>
+                <?php
+                $table = 'product_tbl';
+                $rows = "*";
+                $join = null;
+                $where = null;
+                $order = null;
+                $limit = null;
+                $products = $obj->selectAll($table, $rows, $join, $where, $order, $limit);
+
+                ?>
+                <div class="stat-number"><?= count($products) ?></div>
                 <div class="stat-label">Products</div>
             </div>
         </div>
     </div>
 </body>
+
 </html>

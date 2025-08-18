@@ -56,7 +56,7 @@ if (isset($_GET['id'])) {
     $order = null;
     $limit = null;
 
-    $subCategory = $obj->selectId($table, $rows, $join, $where, $params, $order, $limit);
+    $subCategory = $obj->selectOne($table, $rows, $join, $where, $params, $order, $limit);
 }
 ?>
 <!DOCTYPE html>
@@ -100,9 +100,9 @@ if (isset($_GET['id'])) {
                         <select id="parent-category" name="category">
                             <option value="" selected disabled>Select Parent Category</option>
                             <?php foreach ($categories as $category): ?>
-                            <option value="<?= htmlspecialchars($category['id']) ?>"
-                                <?= ($category['id'] == $subCategory['category_id']) ? 'selected' : null ?>>
-                                <?= htmlspecialchars($category['category_name']) ?></option>
+                                <option value="<?= htmlspecialchars($category['id']) ?>"
+                                    <?= ($category['id'] == $subCategory['category_id']) ? 'selected' : null ?>>
+                                    <?= htmlspecialchars($category['category_name']) ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>

@@ -60,7 +60,7 @@ if (isset($_GET['bid'])) {
     $params = [":id" => $id];
     $order = null;
     $limit = null;
-    $brand = $obj->selectId($table, $rows, $join, $where, $params, $order, $limit);
+    $brand = $obj->selectOne($table, $rows, $join, $where, $params, $order, $limit);
 }
 
 

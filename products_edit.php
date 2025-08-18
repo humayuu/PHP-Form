@@ -13,11 +13,12 @@ if ($_SERVER['REQUEST_METHOD'] === "POST" && isset($_POST['submit'])) {
         exit;
     }
 
+    $id = (int) $_POST['id'];
     $productName = trim(filter_var($_POST['product_name'], FILTER_SANITIZE_SPECIAL_CHARS));
     $productDescription = trim(filter_var($_POST['product_description'], FILTER_SANITIZE_SPECIAL_CHARS));
     $brand = trim(filter_var($_POST['brand'], FILTER_SANITIZE_SPECIAL_CHARS));
     $category = trim(filter_var($_POST['category'], FILTER_SANITIZE_SPECIAL_CHARS));
-    $subCategory = trim(filter_var($_POST['sub_category'], FILTER_SANITIZE_SPECIAL_CHARS));
+    $subCategory = trim(filter_var($_POST['subcategory'], FILTER_SANITIZE_SPECIAL_CHARS));
     $price = trim(filter_var($_POST['product_price'], FILTER_SANITIZE_SPECIAL_CHARS));
     $discount = trim(filter_var($_POST['discount_price'], FILTER_SANITIZE_SPECIAL_CHARS));
     $stock = trim(filter_var($_POST['product_stock'], FILTER_SANITIZE_SPECIAL_CHARS));
@@ -41,50 +42,31 @@ if ($_SERVER['REQUEST_METHOD'] === "POST" && isset($_POST['submit'])) {
         'product_status' => $status,
 
     ];
-    $redirect = "products.php" . "?success=1";
-    $obj->insert($table, $params, $redirect);
+    $redirect = 'products.php?success=1';
+    $where = "id = $id";
+    $affected = $obj->update($table, $params, $where);
+    if ($affected !== false) {
+        header('Location: products.php?success=1');
+        exit;
+    } else {
+        echo "Update failed!";
+        print_r($obj->getErrors());
+    }
 }
 
-//For Fetch all data
-$table = "product_tbl";
-
-$rows = "product_tbl.id,
-         product_tbl.product_name,
-         product_tbl.product_description,
-         product_tbl.brand_id,
-         product_tbl.category_id,
-         product_tbl.sub_category_id,
-         product_tbl.product_price,
-         product_tbl.discount_price,
-         product_tbl.product_stock,
-         product_tbl.product_status,
-         brand_tbl.id AS brand_id,
-         brand_tbl.brand_name,
-         category_tbl.id AS category_id,
-         category_tbl.category_name,
-         sub_category_tbl.id AS sub_category_id,
-         sub_category_tbl.sub_category_name";
-
-$join = "
-         LEFT JOIN brand_tbl ON product_tbl.brand_id = brand_tbl.id
-         LEFT JOIN category_tbl ON product_tbl.category_id = category_tbl.id
-         LEFT JOIN sub_category_tbl ON product_tbl.sub_category_id = sub_category_tbl.id";
-
-$where = null;
-$order = "product_tbl.product_name";
-$limit = null;
-
-$products = $obj->selectAll($table, $rows, $join, $where, $order, $limit);
-
-
 if (isset($_GET['id'])) {
-    $id = (int)$_GET['id']; // ensure numeric
-    $where = "id = :id";
-    $params = ['id' => $id];
-    $table = "product_tbl";
-    $redirect = basename(__FILE__) . "?success=1";
 
-    $obj->delete($table, $where, $params, $redirect);
+    //For Fetch Single data
+    $id = (int) $_GET['id'];
+    $table = "product_tbl";
+    $rows = "*";
+    $join = null;
+    $where = "id = :id";
+    $params = ["id" => $id];
+    $order = null;
+    $limit = null;
+
+    $product = $obj->selectOne($table, $rows, $join, $where, $params, $order, $limit);
 }
 ?>
 <!DOCTYPE html>
@@ -113,16 +95,18 @@ if (isset($_GET['id'])) {
 
                 <form method="POST" action="<?= basename(__FILE__) ?>">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+                    <input type="hidden" name="id" value="<?= htmlspecialchars($product['id']) ?>">
 
                     <div class="form-group">
                         <label for="product-name">Product Name *</label>
-                        <input type="text" id="product-name" name="product_name">
+                        <input type="text" id="product-name" name="product_name"
+                            value="<?= htmlspecialchars($product['product_name']) ?>">
                     </div>
 
                     <div class="form-group">
                         <label for="product-description">Description</label>
                         <textarea id="product-description" name="product_description"
-                            placeholder="Product description"></textarea>
+                            placeholder="Product description"><?= htmlspecialchars($product['product_description']) ?></textarea>
                     </div>
 
                     <div class="form-group">
@@ -140,7 +124,8 @@ if (isset($_GET['id'])) {
                         <select id="product-brand" name="brand">
                             <option value="" disabled selected>Select Brand</option>
                             <?php foreach ($brands as $brandValue): ?>
-                                <option value="<?= htmlspecialchars($brandValue['id']) ?>">
+                                <option value="<?= htmlspecialchars($brandValue['id']) ?>"
+                                    <?= ($brandValue['id'] == $product['brand_id']) ? 'selected' : null ?>>
                                     <?= htmlspecialchars($brandValue['brand_name']) ?></option>
                             <?php endforeach; ?>
                         </select>
@@ -161,7 +146,8 @@ if (isset($_GET['id'])) {
                         <select id="product-brand" name="category">
                             <option value="" disabled selected>Select Category</option>
                             <?php foreach ($categories as $categoryValue): ?>
-                                <option value="<?= htmlspecialchars($categoryValue['id']) ?>">
+                                <option value="<?= htmlspecialchars($categoryValue['id']) ?>"
+                                    <?= ($categoryValue['id'] == $product['category_id']) ? 'selected' : null ?>>
                                     <?= htmlspecialchars($categoryValue['category_name']) ?></option>
                             <?php endforeach; ?>
                         </select>
@@ -181,9 +167,10 @@ if (isset($_GET['id'])) {
                         <label for="subcategory">Sub Category</label>
                         <select id="product-brand" name="sub_category">
                             <option value="" disabled selected>Select SubCategory</option>
-                            <?php foreach ($subCategories as $subCategoriesVal): ?>
-                                <option value="<?= htmlspecialchars($subCategoriesVal['id']) ?>">
-                                    <?= htmlspecialchars($subCategoriesVal['sub_category_name']) ?></option>
+                            <?php foreach ($subCategories as $SubcategoryValue): ?>
+                                <option value="<?= htmlspecialchars($SubcategoryValue['id']) ?>"
+                                    <?= ($SubcategoryValue['id'] == $product['sub_category_id']) ? 'selected' : null ?>>
+                                    <?= htmlspecialchars($SubcategoryValue['sub_category_name']) ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -191,74 +178,36 @@ if (isset($_GET['id'])) {
                     <div class="price-group">
                         <div class="form-group">
                             <label for="product-price">Price *</label>
-                            <input type="number" id="product-price" name="product_price" step="0.01">
+                            <input type="number" id="product-price" name="product_price" step="0.01"
+                                value="<?= htmlspecialchars($product['product_price']) ?>">
                         </div>
 
                         <div class="form-group">
                             <label for="product-sale-price">Discount Price</label>
-                            <input type="number" id="product-sale-price" name="discount_price" step="0.01">
+                            <input type="number" id="product-sale-price" name="discount_price" step="0.01"
+                                value="<?= htmlspecialchars($product['discount_price']) ?>">
                         </div>
                     </div>
 
                     <div class="form-group">
                         <label for="product-stock">Stock Quantity *</label>
-                        <input type="number" id="product-stock" name="product_stock">
+                        <input type="number" id="product-stock" name="product_stock"
+                            value="<?= htmlspecialchars($product['product_stock']) ?>">
                     </div>
 
                     <div class="form-group">
                         <label for="product-status">Status</label>
                         <select id="product-status" name="product_status">
-                            <option value="active">Active</option>
-                            <option value="inactive">Inactive</option>
-                            <option value="draft">Draft</option>
+                            <option value="active" <?= ($product['product_status'] == 'active') ? 'active' : null ?>>
+                                Active</option>
+                            <option value="inactive"
+                                <?= ($product['product_status'] == 'inactive') ? 'active' : null ?>>Inactive</option>
                         </select>
                     </div>
 
-                    <button type="submit" name="submit" class="btn btn-primary">Add Product</button>
+                    <button type="submit" name="submit" class="btn btn-primary">Update Product</button>
                 </form>
 
-            </div>
-
-            <div class="table-section">
-                <h2>Existing Products</h2>
-                <?php if ($products): ?>
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Product Name</th>
-                                <th>Category</th>
-                                <th>Brand</th>
-                                <th>Price</th>
-                                <th>Stock</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($products as $product): ?>
-                                <tr>
-                                    <td><?= htmlspecialchars($product['product_name']) ?></td>
-                                    <td><span class="category-tag"><?= htmlspecialchars($product['category_name']) ?></span>
-                                    </td>
-                                    <td><?= htmlspecialchars($product['brand_name']) ?></td>
-                                    <td class="price"><?= htmlspecialchars($product['product_price']) ?></td>
-                                    <td class="stock-good"><?= htmlspecialchars($product['product_stock']) ?></td>
-                                    <td>
-                                        <span class="status-active"><?= htmlspecialchars($product['product_status']) ?></span>
-                                    </td>
-                                    <td>
-                                        <a href="products_edit.php?id=<?= htmlspecialchars($product['id']) ?>"
-                                            class="btn btn-edit">Edit</a>
-                                        <a href="products.php?id=<?= htmlspecialchars($product['id']) ?>"
-                                            onclick="return confirm('Are you sure?')" class="btn btn-danger">Delete</a>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                <?php else: ?>
-                    <div>No Record Found!</div>
-                <?php endif; ?>
             </div>
         </div>
     </div>
